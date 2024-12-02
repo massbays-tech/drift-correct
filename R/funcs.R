@@ -19,7 +19,7 @@ sim_fun <- function(
 
   # Create time sequence
   time_series <- data.frame(
-    timestamp = seq(from = as.POSIXct(start_date), 
+    timestamp = seq(from = as.POSIXct(start_date, tz = 'UTC'), 
                     by = "hour", 
                     length.out = total_hours)
   )
@@ -56,17 +56,23 @@ correctdrift_fun <- function(
     parameter,         # Name of the parameter to correct
     drift_start_time,  # Start time of the drifted period
     drift_end_time,    # End time of the drifted period
-    final_end_value,   # The value to align the end point to after correction
-    plot_results = TRUE
+    plot_results = FALSE
 ) {
   # Subset the data for the entire time series and drift period
+  
+  drift_start_time <- as.POSIXct(drift_start_time, tz = attr(time_series_data$timestamp, 'tz'))
+  drift_end_time <- as.POSIXct(drift_end_time, tz = attr(time_series_data$timestamp, 'tz'))
+  
   full_data <- time_series_data
   drift_data <- time_series_data %>%
     filter(timestamp >= drift_start_time & timestamp <= drift_end_time)
-  
+
   # Get start and end points
   start_value <- drift_data[[parameter]][drift_data$timestamp == drift_start_time]
-  end_value <- drift_data[[parameter]][drift_data$timestamp == drift_end_time]
+  end_value <- drift_data[[parameter]][which(drift_data$timestamp == drift_end_time) - 1]
+
+  # final end value to interpolate to
+  final_end_value <- drift_data[[parameter]][drift_data$timestamp == drift_end_time]
   
   # Create a precise linear interpolation between start and end points
   drift_duration <- as.numeric(difftime(drift_end_time, drift_start_time, units = 'secs'))

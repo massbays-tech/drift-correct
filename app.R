@@ -15,7 +15,8 @@ ui <- page_sidebar(
     numericInput("drift_per", "Percent Drifted", value = 0.5, min = 0, max = 1, step = 0.1),
     actionButton("simulate", "Simulate", class = "btn-primary"),
     tags$hr(),
-    verbatimTextOutput("selected_times")
+    verbatimTextOutput("selected_times"),
+    uiOutput("correct_drift_button")
   ),
   card(
     card_header("Simulated Parameters"),
@@ -59,10 +60,41 @@ server <- function(input, output) {
     )
   })
   
-  output$time_series_plot <- renderPlotly({
+  # Create a reactive value to store the current data (original or corrected)
+  current_data <- reactiveVal()
+  
+  # Update current_data when simulation runs
+  observeEvent(simulated_data(), {
+    current_data(simulated_data())
+  })
+  
+  # Conditionally render the correct drift button
+  output$correct_drift_button <- renderUI({
+    if (length(selected_points()) == 2) {
+      actionButton("correct_drift", "Correct drift", class = "btn-warning")
+    }
+  })
+  
+  # Add observer for correct_drift button
+  observeEvent(input$correct_drift, {
+    req(length(selected_points()) == 2)
     data <- simulated_data()
     points <- selected_points()
+
+    # correction function
+    corrected_data <- correctdrift_fun(data, parameter = 'temperature', 
+                                       drift_start_time = points[[1]], drift_end_time = points[[2]])
     
+    # Update the current data
+    current_data(corrected_data)
+  })
+  
+  output$time_series_plot <- renderPlotly({
+    data <- current_data()
+    points <- selected_points()
+    
+    req(data)
+
     p <- plot_ly(data, x = ~timestamp) %>%
       add_trace(y = ~temperature, name = "Temperature", type = "scatter", mode = "lines") %>%
       layout(
@@ -84,6 +116,8 @@ server <- function(input, output) {
     )
     
   })
+  
+  
 }
 
 shinyApp(ui, server)
