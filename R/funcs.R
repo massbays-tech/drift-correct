@@ -16,10 +16,10 @@ sim_fun <- function(
     conductivity = list(mean = 500, sd = 50, min = 100, max = 1000),
     dissolved_oxygen = list(mean = 8, sd = 1, min = 0, max = 15)
   )
-  
+
   # Create time sequence
   time_series <- data.frame(
-    timestamp = seq(from = start_date, 
+    timestamp = seq(from = as.POSIXct(start_date), 
                     by = "hour", 
                     length.out = total_hours)
   )
