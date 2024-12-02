@@ -6,17 +6,18 @@ library(plotly)
 source(here::here('R/funcs.R'))
 
 ui <- page_sidebar(
-  title = "Time Series Simulator",
+  title = "Drift Correction Simulator",
   sidebar = sidebar(
     width = 400,
     dateInput("start_date", "Start Date", value = Sys.Date()),
-    numericInput("days", "Number of Days", value = 5, min = 1, max = 30),
-    numericInput("drift_rate", "Drift Rate", value = 0.05, min = 0, max = 1, step = 0.01),
+    numericInput("days", "Number of Days", value = 10, min = 1, max = 30),
+    numericInput("drift_rate", "Drift Rate", value = 0.1, min = 0, max = 1, step = 0.01),
     numericInput("drift_per", "Percent Drifted", value = 0.5, min = 0, max = 1, step = 0.1),
     actionButton("simulate", "Simulate", class = "btn-primary"),
     tags$hr(),
-    verbatimTextOutput("selected_times"),
-    uiOutput("correct_drift_button")
+    uiOutput("selected_times_ui"),
+    uiOutput("correct_drift_button"),
+    uiOutput("reset_button")
   ),
   card(
     card_header("Simulated Parameters"),
@@ -27,6 +28,8 @@ ui <- page_sidebar(
 server <- function(input, output) {
   
   selected_points <- reactiveVal(list())
+  is_corrected <- reactiveVal(FALSE)
+  is_simulated <- reactiveVal(FALSE)
   
   observeEvent(event_data("plotly_click"), {
     click_data <- event_data("plotly_click")
@@ -40,6 +43,12 @@ server <- function(input, output) {
     }
   })
   
+  # Create UI for selected times conditionally
+  output$selected_times_ui <- renderUI({
+    req(is_simulated())
+    verbatimTextOutput("selected_times")
+  })
+  
   output$selected_times <- renderText({
     points <- selected_points()
     if (length(points) == 0) return("Click to select start time")
@@ -51,6 +60,8 @@ server <- function(input, output) {
   
   simulated_data <- eventReactive(input$simulate, {
     selected_points(list())
+    is_corrected(FALSE) 
+    is_simulated(TRUE)
     sim_fun(
       start_date = input$start_date,
       days = input$days,
@@ -68,10 +79,25 @@ server <- function(input, output) {
     current_data(simulated_data())
   })
   
+  # Reset to original data
+  observeEvent(input$reset, {
+    req(simulated_data())
+    current_data(simulated_data())
+    selected_points(list())
+    is_corrected(FALSE)
+  })
+  
   # Conditionally render the correct drift button
   output$correct_drift_button <- renderUI({
     if (length(selected_points()) == 2) {
       actionButton("correct_drift", "Correct drift", class = "btn-warning")
+    }
+  })
+  
+  # Conditionally render the reset button
+  output$reset_button <- renderUI({
+    if (is_corrected()) {
+      actionButton("reset", "Reset to Original", class = "btn-secondary")
     }
   })
   
@@ -84,9 +110,10 @@ server <- function(input, output) {
     # correction function
     corrected_data <- correctdrift_fun(data, parameter = 'temperature', 
                                        drift_start_time = points[[1]], drift_end_time = points[[2]])
-    
+
     # Update the current data
     current_data(corrected_data)
+    is_corrected(TRUE) 
   })
   
   output$time_series_plot <- renderPlotly({
