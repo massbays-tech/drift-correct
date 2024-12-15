@@ -54,6 +54,7 @@ sim_fun <- function(
 correctdrift_fun <- function(
     time_series_data,  # Input dataframe with timestamp and parameter columns
     parameter,         # Name of the parameter to correct
+    correct_to,        # Value to correct to
     drift_start_time,  # Start time of the drifted period
     drift_end_time,    # End time of the drifted period
     plot_results = FALSE
@@ -61,45 +62,30 @@ correctdrift_fun <- function(
   # Subset the data for the entire time series and drift period
   
   drift_start_time <- as.POSIXct(drift_start_time, tz = attr(time_series_data$timestamp, 'tz'))
-  clean_start_time <- as.POSIXct(drift_end_time, tz = attr(time_series_data$timestamp, 'tz'))
-  drift_end_time <- time_series_data$timestamp[which(time_series_data$timestamp == clean_start_time) - 1]
+  drift_end_time <- as.POSIXct(drift_end_time, tz = attr(time_series_data$timestamp, 'tz'))
   
   full_data <- time_series_data
   drift_data <- time_series_data %>%
-    filter(timestamp >= drift_start_time & timestamp <= clean_start_time)
-
-  # Get start and end points
-  start_value <- drift_data[[parameter]][drift_data$timestamp == drift_start_time]
-  end_value <- drift_data[[parameter]][drift_data$timestamp == drift_end_time]
-
-  # final end value to interpolate to
-  final_end_value <- drift_data[[parameter]][which(drift_data$timestamp == clean_start_time)]
+    mutate(
+      ind = 1:n()
+    ) |> 
+    filter(timestamp >= drift_start_time & timestamp <= drift_end_time)
   
-  # Create a precise linear interpolation between start and end points
-  drift_duration <- as.numeric(difftime(drift_end_time, drift_start_time, units = 'secs'))
-  clean_duration <- as.numeric(difftime(clean_start_time, drift_start_time, units = 'secs'))
-
-  # Linear interpolation function
-  linear_interpolation <- function(x, value, duration) {
-    start_value + (value - start_value) * 
-      (as.numeric(x - drift_start_time) / duration)
-  }
+  drift_data <- drift_data |> 
+    mutate(
+      corrected_value = drift_data[[parameter]] + (correct_to - drift_data[[parameter]][ind == max(ind)]) * 
+        (ind - min(ind)) / (max(ind) - min(ind))
+    )
   
-  # Calculate residuals (difference between original data and linear interpolation)
-  drift_data$interpolated_value <- linear_interpolation(drift_data$timestamp, end_value, drift_duration)
-  drift_data$residuals <- drift_data[[parameter]] - drift_data$interpolated_value
-  
-  # Apply correction to the full time series within the drift period
-  corrected_data <- full_data %>%
-    mutate(!!parameter := case_when(
-      timestamp >= drift_start_time & timestamp <= drift_end_time ~ 
-        linear_interpolation(timestamp, final_end_value, clean_duration) + 
-        drift_data$residuals[match(timestamp, drift_data$timestamp)],
-      TRUE ~ .data[[parameter]]
-    ))
-  
+  # replace the drifted values with corrected values
+  corrected_data <- full_data
+  corrected_data[corrected_data$timestamp >= drift_start_time & corrected_data$timestamp <= drift_end_time, parameter] <- drift_data$corrected_value
+      
   # Optional plotting
   if (plot_results) {
+    start_value <- drift_data[[parameter]][drift_data$ind == min(drift_data$ind)]
+    final_end_value <- drift_data[[parameter]][drift_data$ind == max(drift_data$ind)]
+    
     par(mfrow = c(2,1), mar = c(4,4,2,1))
     
     # Original data

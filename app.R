@@ -16,6 +16,7 @@ ui <- page_sidebar(
     actionButton("simulate", "Simulate", class = "btn-primary"),
     tags$hr(),
     uiOutput("selected_times_ui"),
+    uiOutput("correct_to_ui"),
     uiOutput("correct_drift_button"),
     uiOutput("reset_button")
   ),
@@ -87,6 +88,14 @@ server <- function(input, output) {
     is_corrected(FALSE)
   })
   
+  # Conditionally render the correct to selection
+  output$correct_to_ui <- renderUI({
+    if (length(selected_points()) == 2) {
+      numericInput('correct_to', 'Correct to', value = 0, min = 0, max = NA, step = 1)
+    }
+  })
+  
+  
   # Conditionally render the correct drift button
   output$correct_drift_button <- renderUI({
     if (length(selected_points()) == 2) {
@@ -106,9 +115,10 @@ server <- function(input, output) {
     req(length(selected_points()) == 2)
     data <- simulated_data()
     points <- selected_points()
+    correct_to <- input$correct_to
 
     # correction function
-    corrected_data <- correctdrift_fun(data, parameter = 'temperature', 
+    corrected_data <- correctdrift_fun(data, parameter = 'temperature', correct_to = correct_to, 
                                        drift_start_time = points[[1]], drift_end_time = points[[2]])
 
     # Update the current data
