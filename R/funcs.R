@@ -54,26 +54,28 @@ sim_fun <- function(
 correctdrift_fun <- function(
     time_series_data,  # Input dataframe with timestamp and parameter columns
     parameter,         # Name of the parameter to correct
-    correct_to,        # Value to correct to
+    cal_ref,           # True/reference value from independent calibration standard at deployment end
     drift_start_time,  # Start time of the drifted period
     drift_end_time,    # End time of the drifted period
     plot_results = FALSE
 ) {
   # Subset the data for the entire time series and drift period
-  
+
   drift_start_time <- as.POSIXct(drift_start_time, tz = attr(time_series_data$timestamp, 'tz'))
   drift_end_time <- as.POSIXct(drift_end_time, tz = attr(time_series_data$timestamp, 'tz'))
-  
+
   full_data <- time_series_data
   drift_data <- time_series_data %>%
     mutate(
       ind = 1:n()
-    ) |> 
+    ) |>
     filter(timestamp >= drift_start_time & timestamp <= drift_end_time)
-  
-  drift_data <- drift_data |> 
+
+  cal_check <- drift_data[[parameter]][drift_data$ind == max(drift_data$ind)]
+
+  drift_data <- drift_data |>
     mutate(
-      corrected_value = drift_data[[parameter]] + (correct_to - drift_data[[parameter]][ind == max(ind)]) * 
+      corrected_value = drift_data[[parameter]] + (cal_ref - cal_check) *
         (ind - min(ind)) / (max(ind) - min(ind))
     )
   

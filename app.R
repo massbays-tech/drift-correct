@@ -88,10 +88,10 @@ server <- function(input, output) {
     is_corrected(FALSE)
   })
   
-  # Conditionally render the correct to selection
+  # Conditionally render calibration input
   output$correct_to_ui <- renderUI({
     if (length(selected_points()) == 2) {
-      numericInput('correct_to', 'Correct to', value = 0, min = 0, max = NA, step = 1)
+      numericInput('cal_ref', 'Reference value (independent sonde)', value = 0, min = 0, max = NA, step = 0.01)
     }
   })
   
@@ -115,10 +115,10 @@ server <- function(input, output) {
     req(length(selected_points()) == 2)
     data <- simulated_data()
     points <- selected_points()
-    correct_to <- input$correct_to
 
     # correction function
-    corrected_data <- correctdrift_fun(data, parameter = 'temperature', correct_to = correct_to, 
+    corrected_data <- correctdrift_fun(data, parameter = 'temperature',
+                                       cal_ref = input$cal_ref,
                                        drift_start_time = points[[1]], drift_end_time = points[[2]])
 
     # Update the current data
